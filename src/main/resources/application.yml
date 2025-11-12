@@ -53,8 +53,8 @@ spring:
       client:
         registration:
           github:
-            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
-            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            client-id: ${GITHUB_CLIENT_ID:Ov23lis5noCV5BOrPF8V}
+            client-secret: ${GITHUB_CLIENT_SECRET:6f26bc40a5156daf16dcb25b69404a6fa83a1326}
             scope:
               - user:email
               - read:user
@@ -92,7 +92,8 @@ management:
   prometheus:
     metrics:
       export:
-        enabled: true
+        enabled: true
+
         # Logging
 logging:
   level:

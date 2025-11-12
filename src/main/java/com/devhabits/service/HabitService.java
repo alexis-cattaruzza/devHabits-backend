@@ -143,11 +143,11 @@ public class HabitService {
         if (request.getColor() != null) habit.setColor(request.getColor());
         if (request.getReminderEnabled() != null) habit.setReminderEnabled(request.getReminderEnabled());
         if (request.getReminderTime() != null) habit.setReminderTime(request.getReminderTime());
+        if (request.getGithubAutoTrack() != null) habit.setGithubAutoTrack(request.getGithubAutoTrack());
+        if (request.getGithubEventType() != null) habit.setGithubEventType(request.getGithubEventType());
 
         habit = habitRepository.save(habit);
-        
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
+
         boolean completedToday = isCompletedToday(habit.getId());
         
         LocalDateTime lastCompleted = habitLogRepository
@@ -186,15 +186,13 @@ public class HabitService {
         Habit habit = habitRepository.findByIdAndUserId(habitId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", habitId.toString()));
 
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
         // Check if already completed today
         if (isCompletedToday(habit.getId())) {
             throw new BadRequestException("Habit already completed today");
         }
 
         // Create habit log
-        HabitLog log = HabitLog.builder()
+        HabitLog habitLog = HabitLog.builder()
                 .habitId(habitId)
                 .userId(userId)
                 .completedAt(LocalDateTime.now())
@@ -202,7 +200,7 @@ public class HabitService {
                 .xpEarned(10)
                 .build();
 
-        habitLogRepository.save(log);
+        habitLogRepository.save(habitLog);
 
         // Update habit stats
         habit.incrementCompletions();
@@ -228,31 +226,91 @@ public class HabitService {
 
         habit = habitRepository.save(habit);
 
-        this.log.info("Habit checked-in successfully: {}", habitId);
+        log.info("Habit checked-in successfully: {}", habitId);
 
         return mapToHabitResponse(habit, true, LocalDateTime.now());
     }
     
     /**
+     * Auto-complete a habit from GitHub event
+     * Similar to checkInHabit but allows completion even if already done today
+     * Returns the HabitLog ID
+     */
+    @Transactional
+    public UUID autoCompleteHabitFromGitHub(UUID userId, UUID habitId, String note) {
+        log.info("Auto-completing habit from GitHub: {} for user: {}", habitId, userId);
+
+        Habit habit = habitRepository.findByIdAndUserId(habitId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Habit", "id", habitId.toString()));
+
+        // Check if already completed today
+        if (isCompletedToday(habit.getId())) {
+            log.debug("Habit already completed today, skipping auto-completion");
+            // Return existing log ID
+            return habitLogRepository.findFirstByHabitIdOrderByCompletedAtDesc(habitId)
+                    .map(HabitLog::getId)
+                    .orElseThrow();
+        }
+
+        // Create habit log
+        HabitLog habitLog = HabitLog.builder()
+                .habitId(habitId)
+                .userId(userId)
+                .completedAt(LocalDateTime.now())
+                .note(note)
+                .xpEarned(10)
+                .build();
+
+        habitLog = habitLogRepository.save(habitLog);
+
+        // Update habit stats
+        habit.incrementCompletions();
+
+        // Calculate and update streaks
+        List<HabitLog> allLogs = habitLogRepository.findByHabitIdOrderByCompletedAtDesc(habitId);
+        int currentStreak = StreakCalculator.calculateCurrentStreak(allLogs);
+        int longestStreak = StreakCalculator.calculateLongestStreak(allLogs);
+
+        habit.setCurrentStreak(currentStreak);
+        if (longestStreak > habit.getLongestStreak()) {
+            habit.setLongestStreak(longestStreak);
+        }
+
+        // Update user XP
+        User user = userRepository.findById(userId).orElseThrow();
+        user.addXp(10);
+
+        // Update user's overall streak (max of all habits)
+        updateUserOverallStreak(userId);
+
+        userRepository.save(user);
+        habitRepository.save(habit);
+
+        log.info("Habit auto-completed from GitHub successfully: {}", habitId);
+
+        return habitLog.getId();
+    }
+
+    /**
      * Update user's overall current streak (max across all habits)
      */
     private void updateUserOverallStreak(UUID userId) {
         List<Habit> habits = habitRepository.findByUserIdAndIsActiveTrue(userId);
-        
+
         int maxStreak = habits.stream()
                 .mapToInt(Habit::getCurrentStreak)
                 .max()
                 .orElse(0);
-        
+
         User user = userRepository.findById(userId).orElseThrow();
         user.setCurrentStreak(maxStreak);
-        
+
         // Update longest streak if needed
         int maxLongestStreak = habits.stream()
                 .mapToInt(Habit::getLongestStreak)
                 .max()
                 .orElse(0);
-        
+
         if (maxLongestStreak > user.getLongestStreak()) {
             user.setLongestStreak(maxLongestStreak);
         }

@@ -1,5 +1,6 @@
 package com.devhabits.model.dto.request;
 
+import com.devhabits.model.enums.GitHubEventType;
 import com.devhabits.model.enums.HabitCategory;
 import com.devhabits.model.enums.HabitFrequency;
 import jakarta.validation.constraints.*;
@@ -39,4 +40,8 @@ public class UpdateHabitRequest {
     private Boolean reminderEnabled;
 
     private LocalTime reminderTime;
+
+    private Boolean githubAutoTrack;
+
+    private GitHubEventType githubEventType;
 }
