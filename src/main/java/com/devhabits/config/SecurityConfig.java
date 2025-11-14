@@ -32,11 +32,15 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                // CORS configuration is handled by WebConfig with environment-based settings
+                .cors(cors -> {})  // Enable CORS with default settings (uses WebConfig CorsFilter)
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/github/webhook",
+                                "/login/oauth2/code/**",  // OAuth2 callback endpoints
+                                "/oauth2/**",              // OAuth2 endpoints
                                 "/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

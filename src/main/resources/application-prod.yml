@@ -1,30 +1,62 @@
+# Production-specific configuration
+# All environment variables MUST be set in AWS Elastic Beanstalk or your deployment environment
 spring:
   datasource:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
-    hikari:
-      maximum-pool-size: 20
-  
+
   jpa:
-    show-sql: false
-    properties:
-      hibernate:
-        format_sql: false
-  
+    show-sql: true  # Keep SQL logging enabled for debugging in production
+
+  cache:
+    type: redis  # Enable Redis caching in production
+
   data:
     redis:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
 
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
+            redirect-uri: ${BACKEND_URL}/login/oauth2/code/github
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:5000}
+
+# Management and monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      enabled: true
+
+# Application configuration
 app:
-  cors:
-    allowed-origins: ${FRONTEND_URL:https://devhabits.com}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
+  cors:
+    allowed-origins: ${FRONTEND_URL}
+
+# Logging - reduced verbosity for production
 logging:
   level:
     com.devhabits: INFO
-    org.springframework.web: WARN
-    org.springframework.security: INFO
-    org.hibernate.SQL: WARN
+    org.springframework.web: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: INFO
